@@ -1,6 +1,8 @@
 const { validationResult } = require("express-validator");
 const User = require("../modelsMongoDB/user-model");
 const jwt = require("jsonwebtoken");
+
+
 const { secretAccess, secretRefresh } = require("../configJWT");
 const secrets = require('../configJWT')
 const errorHandler = require('../utils/errorHandler')
@@ -73,9 +75,25 @@ class authController {
       // res.json(users)
       const token = req.headers.authorization.split(' ')[1];
       const userData = jwt.verify(token, secrets.secretAccess);
+     
+      const candidate = await User.findOne({ id: userData.id });
+      const newToken = jwt.sign(
+        {
+          userId: candidate._id,
+          id: candidate.id,
+          id_type: candidate.id_type,
+        },
+        secretAccess,
+        { expiresIn: 10 * 60 }
+      ); // 10 min
+      candidate.isActivated = true
+      candidate.token = newToken
+      candidate.save();
+      
       res.status(200).json({
         id: userData.id,
         id_type: userData.id_type,
+        newtoken: `Bearer ${newToken}`
       });
     } catch (error) {
       console.log(error);
@@ -88,9 +106,9 @@ class authController {
       const userData = jwt.verify(token, secrets.secretAccess);
       const user = await User.findOne({ id: userData.id });
 
-      if (req.query.all == 'false') (
+      if (req.query.all == 'false') {
           user.token = ''
-      )
+      } else {user.token = ''}
       user.isActivated = false,
       await user.save()
       const newUser = await User.findOne({ id: userData.id });
